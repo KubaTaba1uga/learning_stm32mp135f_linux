@@ -1,10 +1,5 @@
 #!/usr/bin/env bash
 
-# Usage: ./import_third_party.sh <name> <tag> <url>
-#   <name> = remote name + folder name in third_party/
-#   <tag>  = tag/branch/commit to import, e.g. v1.2.3 or main
-#   <url>  = git clone URL of the third-party repo
-
 set -euo pipefail
 
 if [ "$#" -ne 3 ]; then
