@@ -5,3 +5,6 @@
 [submodule "third_party/u-boot"]
 	path = third_party/u-boot
 	url = https://source.denx.de/u-boot/u-boot.git
+[submodule "third_party/optee-os"]
+	path = third_party/optee-os
+	url = https://github.com/OP-TEE/optee_os.git
