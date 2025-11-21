@@ -34,19 +34,20 @@ git add . && git commit -m "WIP"
 git stash push -m "temp"
 
 # 2) Add the remote of the third-party project
-git remote add linux https://github.com/gregkh/linux
+git remote add tf-a https://review.trustedfirmware.org/TF-A/trusted-firmware-a.git
+git fetch tf-a
 
 # 3) Import the repository (squashed history)
-git subtree add --prefix=third_party/linux linux v6.17.8 --squash
+git subtree add --prefix=third_party/tf-a tf-a v2.9 --squash
 
 # 4) Update later when upstream changes
-git fetch linux
-git subtree pull --prefix=third_party/linux linux v6.18.0 --squash
+git fetch tf-a
+git subtree pull --prefix=third_party/tf-a tf-a v2.10 --squash
 ```
 
 ---
 
 ✅ **Result:**
-The third-party code is now available under `third_party/linux`, fully integrated but isolated for easy updates.
+The third-party code is now available under `third_party/tf-a`, fully integrated but isolated for easy updates.
 
 ---
