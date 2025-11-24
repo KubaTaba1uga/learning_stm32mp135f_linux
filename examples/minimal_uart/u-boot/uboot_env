@@ -1,1 +1,2 @@
 bootargs="console=ttySTM0,115200 earlycon loglevel=8 initcall_debug"
+bootcmd="bind /soc/bus@5c007000/usb@49000000 usb_ether; tftp 0xC2400000 stm32mp135f-dk.dtb; tftp 0xC0200000 zImage; bootz 0xC0200000 - 0xC2400000;"

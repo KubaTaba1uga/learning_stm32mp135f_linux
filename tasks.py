@@ -104,19 +104,50 @@ def clean(c, bytecode=False, extra=""):
                 shutil.rmtree(path)
                 print(f"Removed directory {path}")
     try:
-        # clean_optee(c)
         clean_uboot(c)
-        # clean_tfa(c)
+        clean_optee(c)
+        clean_tfa(c)
     except Exception:
         _pr_error("Cleaning failed")
         raise
 
     _pr_info("Clean up completed.")
+    
+@task
+def build(c, example, boot=True, kernel=True):
+    _pr_info("Building...")
+
+    example_dir = os.path.join(EXAMPLES_PATH, example)
+    build_dir = os.path.join(BUILD_PATH, example)          
+
+    if not os.path.exists(example_dir):
+        _pr_error(f"{example_dir} does not exists")        
+        return 1
+    try:
+        if boot:
+            build_uboot(c, example)
+            build_optee(c, example)
+            build_tfa(c, example)
+            
+        # if kernel:
+        # build_linux(c, example)
+                  
+        _pr_info(f"Building {example}...")
+                
+        c.run(f"mkdir -p {build_dir}")
+        
+        _pr_info(f"Building {example} completed")
+                
+    except Exception:
+        _pr_error(f"Building {example} failed")
+        raise
+
+    _pr_info("Build completed")
 
 
 @task
 def build_uboot(c, example):
-    _pr_info("Building uboot...")    
+    _pr_info("Building u-boot...")    
 
     example_dir = os.path.join(EXAMPLES_PATH, example, "u-boot")
     
@@ -130,7 +161,7 @@ def build_uboot(c, example):
                pair = line.split("=")
                if len(pair)==2:
                    key, value = pair
-                   env[key] = value
+                   env[key] = value.strip('\n')
 
     for key, value in env.items():
         os.environ[key] = value
@@ -145,21 +176,21 @@ def build_uboot(c, example):
     
     try:
         with c.cd(UBOOT_PATH):
-            # if not config_path:
-            _run_make(c, "stm32mp13_defconfig", env)
-            # else:
-                # c.run(f"cp {config_path} ./.config")
+            if config_path:
+                c.run(f"cp {config_path} ./.config")
+            else:
+                _run_make(c, "stm32mp13_defconfig", env)
 
-            # if uboot_env_path:
-            #     c.run("scripts/config --disable CONFIG_USE_ENV_MMC_PARTITION")
-            #     c.run("scripts/config --enable CONFIG_USE_DEFAULT_ENV_FILE")
-            #     c.run("scripts/config --enable CONFIG_ENV_IS_DEFAULT")
-            #     c.run("scripts/config --enable CONFIG_ENV_IS_NOWHERE")
-            #     c.run("scripts/config --disable CONFIG_ENV_IS_IN_MMC")
-            #     c.run("scripts/config --set-str CONFIG_DEFAULT_ENV_FILE env.txt")
-            #     c.run("scripts/config --set-str CONFIG_ENV_SOURCE_FILE env.txt")                
+            if uboot_env_path:
+                c.run("scripts/config --disable CONFIG_USE_ENV_MMC_PARTITION")
+                c.run("scripts/config --enable CONFIG_USE_DEFAULT_ENV_FILE")
+                c.run("scripts/config --enable CONFIG_ENV_IS_DEFAULT")
+                c.run("scripts/config --enable CONFIG_ENV_IS_NOWHERE")
+                c.run("scripts/config --disable CONFIG_ENV_IS_IN_MMC")
+                c.run("scripts/config --set-str CONFIG_DEFAULT_ENV_FILE env.txt")
+                c.run("scripts/config --set-str CONFIG_ENV_SOURCE_FILE env.txt")                
                 
-            #     c.run(f"cp {uboot_env_path} env.txt")                
+                c.run(f"cp {uboot_env_path} env.txt")                
                 
             _run_make(c, "-j 4 all", env)
             c.run(f"mkdir -p {BUILD_PATH}")
@@ -175,35 +206,109 @@ def build_uboot(c, example):
 
     _pr_info("Building uboot completed")
 
-
 @task
-def build(c, example):
-    _pr_info("Building...")
+def build_optee(c, example):
+    _pr_info("Building optee...")    
 
-    example_dir = os.path.join(EXAMPLES_PATH, example)
-    build_dir = os.path.join(BUILD_PATH, example)          
+    example_dir = os.path.join(EXAMPLES_PATH, example, "optee-os")
+    
+    env = {
+        "CROSS_COMPILE": TOOLCHAIN_PATH,
+        "CROSS_COMPILE_core": TOOLCHAIN_PATH,
+        "CROSS_COMPILE_ta_arm32": TOOLCHAIN_PATH,
+        "CFG_USER_TA_TARGETS": "ta_arm32",
+        "CFG_ARM64_core": "n",
+        "PLATFORM": "stm32mp1-135F_DK",
+        "CFG_IN_TREE_EARLY_TAS": "trusted_keys/f04a0fe7-1f5d-4b9b-abf7-619b85b4ce8c",
+    }
+    env_path = os.path.join(example_dir, "build_env")
+    if os.path.exists(env_path):
+       with open(env_path, "r") as fp:
+           for line in fp.readlines():
+               pair = line.split("=")
+               if len(pair)==2:
+                   key, value = pair
+                   env[key] = value.strip('\n')
 
-    if not os.path.exists(example_dir):
-        _pr_error(f"{example_dir} does not exists")        
-        return 1
+    for key, value in env.items():
+        os.environ[key] = value
+
     try:
-        
-        # build_optee(c)
-        build_uboot(c)
-        # build_tfa(c)
-                  
-        _pr_info(f"Building {example}...")
-                
-        c.run(f"mkdir -p {build_dir}")
-        
-        _pr_info(f"Building {example} completed")
-                
-    except Exception:
-        _pr_error(f"Building {example} failed")
-        raise
+        with c.cd(OPTEE_PATH):
+            _run_make(c, "-j 4 all", env)
+            c.run(f"mkdir -p {BUILD_PATH}")
+            with c.cd(os.path.join("out", "arm-plat-stm32mp1", "core")):
+                c.run(f"cp tee.bin tee-raw.bin tee-*_v2.bin {BUILD_PATH}")
 
-    _pr_info("Build completed")
+    except Exception as err:
+        for key in list(env.keys()):
+            env.pop(key)
+        
+        print(err)
+        _pr_error("Building optee failed")
+        raise err
 
+    _pr_info("Building optee completed")
+ 
+@task
+def build_tfa(c, example):
+    _pr_info("Building tf-a...")    
+
+    example_dir = os.path.join(EXAMPLES_PATH, example, "tf-a")
+    
+    env = {
+        "CROSS_COMPILE": TOOLCHAIN_PATH,
+        "CC": str(TOOLCHAIN_PATH) + "gcc",
+        "LD": str(TOOLCHAIN_PATH) + "ld",
+        "BL32": os.path.join(BUILD_PATH, "tee-header_v2.bin"),
+        "BL32_EXTRA1": os.path.join(BUILD_PATH, "tee-pager_v2.bin"),
+        "BL32_EXTRA2": os.path.join(BUILD_PATH, "tee-pageable_v2.bin"),
+        "BL33": os.path.join(BUILD_PATH, "u-boot-nodtb.bin"),
+        "BL33_CFG": os.path.join(BUILD_PATH, "u-boot.dtb"),
+        "ARM_ARCH_MAJOR": "7",
+        "ARCH": "aarch32",
+        "PLAT": "stm32mp1",
+        "DTB_FILE_NAME": "stm32mp135f-dk.dtb",
+        "AARCH32_SP": "optee",
+        "STM32MP15_OPTEE_RSV_SHM": "0",
+        "STM32MP_EMMC": "1",
+        "STM32MP_SDMMC": "1",
+        "STM32MP_RAW_NAND": "0",
+        "STM32MP_SPI_NAND": "0",
+        "STM32MP_SPI_NOR": "0",
+        "STM32MP_USB_PROGRAMMER": "1",
+    }
+    env_path = os.path.join(example_dir, "build_env")
+    if os.path.exists(env_path):
+       with open(env_path, "r") as fp:
+           for line in fp.readlines():
+               pair = line.split("=")
+               if len(pair)==2:
+                   key, value = pair
+                   env[key] = value.strip('\n')
+
+    for key, value in env.items():
+        os.environ[key] = value
+
+    try:
+        with c.cd(TFA_PATH):
+            _run_make(c, "-j 4 all fip", env)
+            c.run(f"mkdir -p {BUILD_PATH}")
+            c.run(f"cp build/stm32mp1/*/fip.bin {BUILD_PATH}/fip.bin")
+            c.run(
+                f"cp build/stm32mp1/*/tf-a-stm32mp135f-dk.stm32 {BUILD_PATH}/tf-a-stm32mp135f-dk.stm32"
+            )
+
+    except Exception as err:
+        for key in list(env.keys()):
+            env.pop(key)
+        
+        print(err)
+        _pr_error("Building tf-a failed")
+        raise err
+
+    _pr_info("Building tf-a completed")
+   
 
 @task
 def clean_tfa(c):

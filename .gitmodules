@@ -1,4 +1,0 @@
-[submodule "third_party/linux"]
-	path = third_party/linux
-	url = https://github.com/gregkh/linux
-	branch = linux-rolling-stable
