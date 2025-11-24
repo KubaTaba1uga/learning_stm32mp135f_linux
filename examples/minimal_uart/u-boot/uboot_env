@@ -1,0 +1,1 @@
+bootargs="console=ttySTM0,115200 earlycon loglevel=8 initcall_debug"

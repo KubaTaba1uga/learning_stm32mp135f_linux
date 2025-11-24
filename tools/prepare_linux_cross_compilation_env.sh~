@@ -1,5 +1,0 @@
-#!/bin/bash
-
-
-export ARCH=arm
-make stm32_defconfig
