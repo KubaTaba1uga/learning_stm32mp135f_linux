@@ -1,0 +1,11 @@
+*~*
+*#*
+~*
+#*
+*#
+*~
+compile_commands.json
+build/*
+third_party/*
+tests/subprojects/unity
+.cache/
