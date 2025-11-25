@@ -1,18 +1,60 @@
+import os
+
 from invoke import task
+
+ROOT_PATH = os.path.dirname(os.path.abspath(__file__))
+THIRD_PARTY_PATH = os.path.join(ROOT_PATH, "third_party")
+BUILD_PATH = os.path.join(ROOT_PATH, "build")
+EXAMPLES_PATH = os.path.join(ROOT_PATH, "examples")
+TOOLCHAIN_PATH = os.path.join(
+    THIRD_PARTY_PATH,
+    "arm-gnu-toolchain-11.3.rel1-x86_64-arm-none-linux-gnueabihf",
+    "bin",
+    "arm-none-linux-gnueabihf-",
+)
+
+env = None
 
 @task
 def add_repo(c, name, tag, url):
-    c.run("mkdir -p third_party")
-    c.run("git status")
-    c.run("git add . || true")
-    c.run("git commit -m \"WIP\" || true")
+    _run("mkdir -p third_party")
+    _run("git status")
+    _run("git add . || true")
+    _run("git commit -m \"WIP\" || true")
 
-    if c.run(f"git remote get-url \"{name}\"", warn=True) == 0:
+    if _run(f"git remote get-url \"{name}\"", warn=True, echo=False) == 0:
         _pr_error(f"{name} already exists")
         return 1
 
-    c.run(f"git remote add \"{name}\" \"{url}\"")
-    c.run(f"git subtree add --prefix=\"third_party/{name}\" \"{name}\" \"{tag}\" --squash")
+    _run(f"git remote add \"{name}\" \"{url}\"")
+    _run(f"git subtree add --prefix=\"third_party/{name}\" \"{name}\" \"{tag}\" --squash")
+
+
+@task
+def build_uboot(c, example):
+    global env    
+    env = {
+        "CROSS_COMPILE": TOOLCHAIN_PATH,        
+    }
+
+    example_path = os.path.join(EXAMPLES_PATH, example, "u-boot")
+    if not os.path.exists(example_path):
+        _pr_error(f"{example} does not exist")
+        return 1
+    
+    env_path = os.path.join(example_dir, "build_env")
+    if os.path.exists(env_path):
+       with open(env_path, "r") as fp:
+           for line in fp.readlines():
+               delim = line.find("=")
+               if delim == -1:
+                   continue
+
+               key, value = line[:delim], line[delim+1:]
+               
+               env[key] = value.strip('\n')
+
+    print(env)
     
 ###############################################
 #                Private API                  #
@@ -68,3 +110,8 @@ def _pr_error(message: str):
     """
     print(f"\033[91m[ERROR] {message}\033[0m")
         
+
+def _run(c, *args, **kwargs):
+    if env:
+        return c.run(*args, **kwargs, env=env)
+    return c.run(*args, **kwargs)
