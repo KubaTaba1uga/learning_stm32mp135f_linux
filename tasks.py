@@ -1,4 +1,5 @@
 import os
+import glob
 
 from invoke import task
 
@@ -65,7 +66,8 @@ def build_uboot(c, example):
     config_path = os.path.join(example_path, "build_config")
     if not os.path.exists(config_path):
         config_path = None
-
+        _pr_warn(f"{example_path}/build_config doesn't exist");
+        
     uboot_path =  os.path.join(THIRD_PARTY_PATH, "u-boot")
     with c.cd(uboot_path):
         _run_make(c, "make stm32mp13_defconfig")
@@ -147,6 +149,81 @@ def build_tfa(c, example):
 
     _pr_info("Building tf-a completed")    
 
+@task
+def clean(c, bytecode=False, extra=""):
+    """
+    Clean up build and temporary files recursively.
+
+    This task removes specified patterns of files and directories,
+    including build artifacts, temporary files, and optionally Python
+    bytecode files.
+
+    Args:
+        bytecode (bool, optional): If True, also removes Python bytecode files (.pyc). Defaults to False.
+        extra (str, optional): Additional pattern to remove. Defaults to "".
+
+    Usage:
+        inv clean
+        inv clean --bytecode
+        inv clean --extra='**/*.log'
+    """
+    patterns = [
+      "build/*",
+      "*/*~*",
+      "*/#*",
+      "**/*~*",
+      "**/*#*",
+      "*~*",
+      "*#*",
+      "**/.#*"   
+    ]
+    
+    if bytecode:
+        patterns.append("**/*.pyc")
+    if extra:
+        patterns.append(extra)
+
+    for pattern in patterns:
+        _pr_info(f"Removing files matching pattern '{pattern}'")
+
+        # Use glob to find files recursively and remove each one
+        for path in glob.glob(pattern, recursive=True):
+            if os.path.isfile(path) or os.path.islink(path):
+                os.remove(path)
+                print(f"Removed file {path}")
+            elif os.path.isdir(path):
+                shutil.rmtree(path)
+                print(f"Removed directory {path}")
+    try:
+        clean_uboot(c)
+        clean_optee(c)
+        clean_tfa(c)
+    except Exception:
+        _pr_error("Cleaning failed")
+        raise
+
+    _pr_info("Clean up completed.")
+
+@task
+def clean_tfa(c):
+    with c.cd(os.path.join(THIRD_PARTY_PATH, "tf-a")):
+        c.run("make clean")
+        c.run("rm -rf build")
+
+
+@task
+def clean_optee(c):
+    with c.cd(os.path.join(THIRD_PARTY_PATH, "optee-os")):
+        c.run("make clean")
+        c.run("rm -rf out")
+
+
+@task
+def clean_uboot(c):
+    with c.cd(os.path.join(THIRD_PARTY_PATH, "u-boot")):
+        c.run("make clean")
+        
+    
 @task
 def deploy_to_sdcard(c, dev="sda"):
     if not os.path.exists("/dev/disk/by-partlabel/fsbl1"):
@@ -246,5 +323,7 @@ def _load_env(example_path, env):
                
                env[key] = value.strip('\n')
        return env_path
+
+    _pr_warn(f"{example_path}/build_env doesn't exist");
     return None
     
