@@ -6,13 +6,14 @@ def add_repo(c, name, tag, url):
     c.run("git status")
     c.run("git add . || true")
     c.run("git commit -m \"WIP\" || true")
-    
+
     if c.run(f"git remote get-url \"{name}\"", warn=True) == 0:
         _pr_error(f"{name} already exists")
         return 1
 
     c.run(f"git remote add \"{name}\" \"{url}\"")
     c.run(f"git subtree add --prefix=\"third_party/{name}\" \"{name}\" \"{tag}\" --squash")
+    
 ###############################################
 #                Private API                  #
 ###############################################
