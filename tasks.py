@@ -31,6 +31,25 @@ def add_repo(c, name, tag, url):
 
 
 @task
+def build(c, example=""):
+    _pr_info(f"Building {example}...")
+
+    example_dir = os.path.join(EXAMPLES_PATH, example)
+    build_dir = os.path.join(BUILD_PATH, example)
+
+    try:
+      build_uboot(c, example)
+      build_optee(c, example)
+      build_tfa(c, example)
+        
+    except Exception:
+        _pr_error(f"Building {example} failed")
+        raise
+
+    _pr_info(f"Building {example} completed")
+
+    
+@task
 def build_uboot(c, example):
     global env    
     env = {
@@ -60,6 +79,7 @@ def build_uboot(c, example):
 
     _pr_info("Building u-boot completed")
 
+    
 @task
 def build_optee(c, example):
     global env    
@@ -84,9 +104,69 @@ def build_optee(c, example):
         _run_make(c, "make -j 4 all")
         _run(c, f"mkdir -p {BUILD_PATH}")
         with c.cd(os.path.join("out", "arm-plat-stm32mp1", "core")):
-            c.run(f"cp tee.bin tee-raw.bin tee-*_v2.bin {BUILD_PATH}")
+            _run(c, f"cp tee.bin tee-raw.bin tee-*_v2.bin {BUILD_PATH}")
 
     _pr_info("Building optee-os completed")
+
+@task
+def build_tfa(c, example):
+    global env
+    env = {
+        "CROSS_COMPILE": TOOLCHAIN_PATH,
+        "CC": str(TOOLCHAIN_PATH) + "gcc",
+        "LD": str(TOOLCHAIN_PATH) + "ld",
+        "BL32": os.path.join(BUILD_PATH, "tee-header_v2.bin"),
+        "BL32_EXTRA1": os.path.join(BUILD_PATH, "tee-pager_v2.bin"),
+        "BL32_EXTRA2": os.path.join(BUILD_PATH, "tee-pageable_v2.bin"),
+        "BL33": os.path.join(BUILD_PATH, "u-boot-nodtb.bin"),
+        "BL33_CFG": os.path.join(BUILD_PATH, "u-boot.dtb"),
+        "ARM_ARCH_MAJOR": "7",
+        "ARCH": "aarch32",
+        "PLAT": "stm32mp1",
+        "DTB_FILE_NAME": "stm32mp135f-dk.dtb",
+        "AARCH32_SP": "optee",
+        "STM32MP15_OPTEE_RSV_SHM": "0",
+        "STM32MP_EMMC": "1",
+        "STM32MP_SDMMC": "1",
+    }
+    
+    _pr_info("Building tf-a...")
+    
+    example_path = os.path.join(EXAMPLES_PATH, example, "tf-a")
+    if os.path.exists(example_path):
+        _load_env(example_path, env)
+
+    tfa_path =  os.path.join(THIRD_PARTY_PATH, "tf-a")        
+    with c.cd(tfa_path):
+      _run_make(c, "make -j 4 all fip")
+      _run(c, f"mkdir -p {BUILD_PATH}")
+      _run(c, f"cp build/stm32mp1/*/fip.bin {BUILD_PATH}/fip.bin")
+      _run(c,
+          f"cp build/stm32mp1/*/tf-a-stm32mp135f-dk.stm32 {BUILD_PATH}/tf-a-stm32mp135f-dk.stm32"
+      )
+
+    _pr_info("Building tf-a completed")    
+
+@task
+def deploy_to_sdcard(c, dev="sda"):
+    if not os.path.exists("/dev/disk/by-partlabel/fsbl1"):
+        raise ValueError("No /dev/disk/by-partlabel/fsbl1")
+    if not os.path.exists("/dev/disk/by-partlabel/fsbl2"):
+        raise ValueError("No /dev/disk/by-partlabel/fsbl2")
+    if not os.path.exists("/dev/disk/by-partlabel/fip"):
+        raise ValueError("No /dev/disk/by-partlabel/fip")
+
+    with c.cd(BUILD_PATH):
+        c.run(
+            "sudo dd if=tf-a-stm32mp135f-dk.stm32 of=/dev/disk/by-partlabel/fsbl1 bs=1K conv=fsync"
+        )
+        c.run(
+            "sudo dd if=tf-a-stm32mp135f-dk.stm32 of=/dev/disk/by-partlabel/fsbl2 bs=1K conv=fsync"
+        )
+        c.run("sudo dd if=fip.bin of=/dev/disk/by-partlabel/fip bs=1K conv=fsync")
+        
+    c.run("sudo sync")
+
     
 ###############################################
 #                Private API                  #
