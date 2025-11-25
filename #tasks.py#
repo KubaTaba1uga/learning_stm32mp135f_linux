@@ -1,0 +1,71 @@
+from invoke import task
+
+@task
+def add_repo(c, name, tag, url):
+    c.run("mkdir -p third_party")
+    c.run("git status")
+    c.run("git add . || true")
+    c.run("git commit -m \"WIP\" || true")
+    
+    if c.run(f"git remote get-url \"{name}\"", warn=True) == 0:
+        _pr_error(f"{name} already exists")
+        return 1
+
+    c.run(f"git remote add \"{name}\" \"{url}\"")
+    c.run(f"git subtree add --prefix=\"third_party/{name}\" \"{name}\" \"{tag}\" --squash")
+
+    
+###############################################
+#                Private API                  #
+###############################################
+def _pr_info(message: str):
+    """
+    Print an informational message in blue color.
+
+    Args:
+        message (str): The message to print.
+
+    Usage:
+        pr_info("This is an info message.")
+    """
+    print(f"\033[94m[INFO] {message}\033[0m")
+
+
+def _pr_warn(message: str):
+    """
+    Print a warning message in yellow color.
+
+    Args:
+        message (str): The message to print.
+
+    Usage:
+        pr_warn("This is a warning message.")
+    """
+    print(f"\033[93m[WARN] {message}\033[0m")
+
+
+def _pr_debug(message: str):
+    """
+    Print a debug message in cyan color.
+
+    Args:
+        message (str): The message to print.
+
+    Usage:
+        pr_debug("This is a debug message.")
+    """
+    print(f"\033[96m[DEBUG] {message}\033[0m")
+
+
+def _pr_error(message: str):
+    """
+    Print an error message in red color.
+
+    Args:
+        message (str): The message to print.
+
+    Usage:
+        pr_error("This is an error message.")
+    """
+    print(f"\033[91m[ERROR] {message}\033[0m")
+        
