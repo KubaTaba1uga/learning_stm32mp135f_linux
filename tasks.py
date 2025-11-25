@@ -40,23 +40,8 @@ def build_uboot(c, example):
     _pr_info("Building u-boot...")
     
     example_path = os.path.join(EXAMPLES_PATH, example, "u-boot")
-    if not os.path.exists(example_path):
-        _pr_error(f"{example} does not exist")
-        return 1
-    
-    env_path = os.path.join(example_path, "build_env")
-    if os.path.exists(env_path):
-       with open(env_path, "r") as fp:
-           for line in fp.readlines():
-               delim = line.find("=")
-               if delim == -1:
-                   continue
-
-               key, value = line[:delim], line[delim+1:]
-               
-               env[key] = value.strip('\n')            
-    else:
-        env_path = None
+    if os.path.exists(example_path):
+        _load_env(example_path, env)
         
     config_path = os.path.join(example_path, "build_config")
     if not os.path.exists(config_path):
@@ -74,8 +59,35 @@ def build_uboot(c, example):
         _run(c, f"cp u-boot-nodtb.bin u-boot.dtb {BUILD_PATH}")
 
     _pr_info("Building u-boot completed")
-        
-        
+
+@task
+def build_optee(c, example):
+    global env    
+    env = {
+        "CROSS_COMPILE": TOOLCHAIN_PATH,
+        "CROSS_COMPILE_core": TOOLCHAIN_PATH,
+        "CROSS_COMPILE_ta_arm32": TOOLCHAIN_PATH,
+        "CFG_USER_TA_TARGETS": "ta_arm32",
+        "CFG_ARM64_core": "n",
+        "PLATFORM": "stm32mp1-135F_DK",
+        "CFG_IN_TREE_EARLY_TAS": "trusted_keys/f04a0fe7-1f5d-4b9b-abf7-619b85b4ce8c",        
+    }
+    
+    _pr_info("Building optee-os...")
+    
+    example_path = os.path.join(EXAMPLES_PATH, example, "optee-os")
+    if os.path.exists(example_path):
+        _load_env(example_path, env)
+
+    optee_path =  os.path.join(THIRD_PARTY_PATH, "optee-os")
+    with c.cd(optee_path):
+        _run_make(c, "make -j 4 all")
+        _run(c, f"mkdir -p {BUILD_PATH}")
+        with c.cd(os.path.join("out", "arm-plat-stm32mp1", "core")):
+            c.run(f"cp tee.bin tee-raw.bin tee-*_v2.bin {BUILD_PATH}")
+
+    _pr_info("Building optee-os completed")
+    
 ###############################################
 #                Private API                  #
 ###############################################
@@ -140,3 +152,19 @@ def _run_make(c, cmd):
     if env:
         return c.run(f"{cmd} " + " ".join([f"{arg}={env[arg]}" for arg in env]), env=env)
     return c.run(cmd)
+
+def _load_env(example_path, env):
+    env_path = os.path.join(example_path, "build_env")
+    if os.path.exists(env_path):
+       with open(env_path, "r") as fp:
+           for line in fp.readlines():
+               delim = line.find("=")
+               if delim == -1:
+                   continue
+
+               key, value = line[:delim], line[delim+1:]
+               
+               env[key] = value.strip('\n')
+       return env_path
+    return None
+    
