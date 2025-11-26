@@ -39,6 +39,7 @@ def build(c, example=""):
     build_dir = os.path.join(BUILD_PATH, example)
 
     try:
+      build_linux(c, example)
       build_uboot(c, example)
       build_optee(c, example)
       build_tfa(c, example)
@@ -49,7 +50,39 @@ def build(c, example=""):
 
     _pr_info(f"Building {example} completed")
 
-    
+
+@task
+def build_linux(c, example):
+    global env    
+    env = {
+        "CROSS_COMPILE": TOOLCHAIN_PATH,
+        "ARCH":"arm",
+    }
+
+    _pr_info("Building linux...")    
+
+    example_path = os.path.join(EXAMPLES_PATH, example, "linux")
+    if os.path.exists(example_path):
+        _load_env(example_path, env)
+
+    config_path = os.path.join(example_path, "build_config")
+    if not os.path.exists(config_path):
+        config_path = None
+        _pr_warn(f"{example_path}/build_config doesn't exist");
+
+    _run(c, f"mkdir -p {BUILD_PATH}")        
+    with c.cd(os.path.join(THIRD_PARTY_PATH, "linux")):
+      _run_make(c, "make multi_v7_defconfig")
+      
+      if config_path:
+          _run(c, f"scripts/kconfig/merge_config.sh .config {config_path}")
+      
+      _run_make(c, "make -j 8 zImage st/stm32mp135f-dk.dtb")
+      _run(c, f"cp arch/arm/boot/zImage {BUILD_PATH}/")
+      _run(c, f"cp arch/arm/boot/dts/st/stm32mp135f-dk.dtb {BUILD_PATH}/")
+
+    _pr_info("Building linux completed")
+      
 @task
 def build_uboot(c, example):
     global env    
@@ -67,16 +100,24 @@ def build_uboot(c, example):
     if not os.path.exists(config_path):
         config_path = None
         _pr_warn(f"{example_path}/build_config doesn't exist");
-        
+
+    env_path = os.path.join(example_path, "uboot.env")
+    if not os.path.exists(env_path):
+        env_path = None
+        _pr_warn(f"{example_path}/uboot_env doesn't exist");
+
+    _run(c, f"mkdir -p {BUILD_PATH}")        
     uboot_path =  os.path.join(THIRD_PARTY_PATH, "u-boot")
     with c.cd(uboot_path):
         _run_make(c, "make stm32mp13_defconfig")
 
         if config_path:
             _run(c, f"scripts/kconfig/merge_config.sh .config {config_path}")
+
+        if env_path:
+            _run(c, f"cp {env_path} board/st/stm32mp1/uboot.env")
             
         _run_make(c, "make -j 4 all")
-        _run(c, f"mkdir -p {BUILD_PATH}")
         _run(c, f"cp u-boot-nodtb.bin u-boot.dtb {BUILD_PATH}")
 
     _pr_info("Building u-boot completed")
@@ -101,10 +142,10 @@ def build_optee(c, example):
     if os.path.exists(example_path):
         _load_env(example_path, env)
 
+    _run(c, f"mkdir -p {BUILD_PATH}")    
     optee_path =  os.path.join(THIRD_PARTY_PATH, "optee-os")
     with c.cd(optee_path):
         _run_make(c, "make -j 4 all")
-        _run(c, f"mkdir -p {BUILD_PATH}")
         with c.cd(os.path.join("out", "arm-plat-stm32mp1", "core")):
             _run(c, f"cp tee.bin tee-raw.bin tee-*_v2.bin {BUILD_PATH}")
 
@@ -138,10 +179,10 @@ def build_tfa(c, example):
     if os.path.exists(example_path):
         _load_env(example_path, env)
 
+    _run(c, f"mkdir -p {BUILD_PATH}")
     tfa_path =  os.path.join(THIRD_PARTY_PATH, "tf-a")        
     with c.cd(tfa_path):
       _run_make(c, "make -j 4 all fip")
-      _run(c, f"mkdir -p {BUILD_PATH}")
       _run(c, f"cp build/stm32mp1/*/fip.bin {BUILD_PATH}/fip.bin")
       _run(c,
           f"cp build/stm32mp1/*/tf-a-stm32mp135f-dk.stm32 {BUILD_PATH}/tf-a-stm32mp135f-dk.stm32"
@@ -244,6 +285,18 @@ def deploy_to_sdcard(c, dev="sda"):
         
     c.run("sudo sync")
 
+@task
+def deploy_to_tftp(c, dev="sda"):
+    tftp_path = os.path.join(ROOT_PATH, "tftp")
+    if not os.path.exists(tftp_path):
+        raise ValueError("No tftp symlink")
+
+    with c.cd(BUILD_PATH):
+        c.run( # Copy linux artifacts
+            f"sudo cp zImage stm32mp135f-dk.dtb {tftp_path}"
+        )
+
+    
     
 ###############################################
 #                Private API                  #
