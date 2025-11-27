@@ -18,17 +18,17 @@ env = None
 
 @task
 def add_repo(c, name, tag, url):
-    _run("mkdir -p third_party")
-    _run("git status")
-    _run("git add . || true")
-    _run("git commit -m \"WIP\" || true")
+    _run(c, "mkdir -p third_party")
+    _run(c, "git status")
+    _run(c, "git add . || true")
+    _run(c, "git commit -m \"WIP\" || true")
 
-    if _run(f"git remote get-url \"{name}\"", warn=True, echo=False) == 0:
+    if _run(c, f"git remote get-url \"{name}\"", warn=True, echo=False) == 0:
         _pr_error(f"{name} already exists")
         return 1
 
-    _run(f"git remote add \"{name}\" \"{url}\"")
-    _run(f"git subtree add --prefix=\"third_party/{name}\" \"{name}\" \"{tag}\" --squash")
+    _run(c, f"git remote add \"{name}\" \"{url}\"")
+    _run(c, f"git subtree add --prefix=\"third_party/{name}\" \"{name}\" \"{tag}\" --squash")
 
 
 @task
@@ -69,14 +69,22 @@ def build_linux(c, example):
     if not os.path.exists(config_path):
         config_path = None
         _pr_warn(f"{example_path}/build_config doesn't exist");
-
+        
+    dts_path = os.path.join(example_path, "dts")
+    if not os.path.exists(dts_path):
+        dts_path = None
+        _pr_warn(f"{example_path}/dts doesn't exist");
+        
     _run(c, f"mkdir -p {BUILD_PATH}")        
     with c.cd(os.path.join(THIRD_PARTY_PATH, "linux")):
       _run_make(c, "make multi_v7_defconfig")
       
       if config_path:
           _run(c, f"scripts/kconfig/merge_config.sh .config {config_path}")
-      
+
+      if dts_path:
+          _run(c, f"cp {dts_path}/* arch/arm/boot/dts/st/")
+          
       _run_make(c, "make -j 8 zImage st/stm32mp135f-dk.dtb")
       _run(c, f"cp arch/arm/boot/zImage {BUILD_PATH}/")
       _run(c, f"cp arch/arm/boot/dts/st/stm32mp135f-dk.dtb {BUILD_PATH}/")
@@ -286,13 +294,12 @@ def deploy_to_sdcard(c, dev="sda"):
     c.run("sudo sync")
 
 @task
-def deploy_to_tftp(c, dev="sda"):
-    tftp_path = os.path.join(ROOT_PATH, "tftp")
-    if not os.path.exists(tftp_path):
-        raise ValueError("No tftp symlink")
+def deploy_to_tftp(c, directory="/srv/tftp"):
+    if not os.path.exists(directory):
+        raise ValueError(f"{directory} does not exists")
 
     with c.cd(BUILD_PATH):
-        c.run( # Copy linux artifacts
+        _run(c, # Copy linux artifacts
             f"sudo cp zImage stm32mp135f-dk.dtb {tftp_path}"
         )
 

@@ -1,0 +1,12 @@
+CONFIG_LOCALVERSION="+nfs_boot"
+# Hardcode default environment in fip
+CONFIG_ENV_IS_IN_MMC=n
+CONFIG_ENV_USE_DEFAULT_ENV_TEXT_FILE=y
+CONFIG_ENV_DEFAULT_ENV_TEXT_FILE="board/st/stm32mp1/uboot.env"
+# Configure usb as ethernet interface
+CONFIG_CMD_BIND=y
+CONFIG_USB_ETHER=y
+CONFIG_USB_ETH_CDC=y
+CONFIG_USB_ETH_RNDIS=n
+CONFIG_USBNET_DEV_ADDR="de:ad:be:ef:00:01"
+CONFIG_USBNET_HOST_ADDR="de:ad:be:ef:00:00"
