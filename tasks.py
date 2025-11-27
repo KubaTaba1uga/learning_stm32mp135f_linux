@@ -32,23 +32,53 @@ def add_repo(c, name, tag, url):
 
 
 @task
-def build(c, example=""):
+def build(c, example="", rootfs=True, linux=True, uboot=True, optee=True, tfa=True):
     _pr_info(f"Building {example}...")
 
     example_dir = os.path.join(EXAMPLES_PATH, example)
     build_dir = os.path.join(BUILD_PATH, example)
 
     try:
-      build_linux(c, example)
-      build_uboot(c, example)
-      build_optee(c, example)
-      build_tfa(c, example)
+      if rootfs:
+        build_rootfs(c, example)
+      if linux:  
+        build_linux(c, example)
+      if uboot:
+        build_uboot(c, example)
+      if optee:
+        build_optee(c, example)
+      if tfa:
+        build_tfa(c, example)
         
     except Exception:
         _pr_error(f"Building {example} failed")
         raise
 
     _pr_info(f"Building {example} completed")
+
+
+@task
+def build_rootfs(c, example):
+    _pr_info("Building rootfs...")
+    global env    
+    env = {}
+    
+    example_path = os.path.join(EXAMPLES_PATH, example, "buildroot")
+    if os.path.exists(example_path):
+        _load_env(example_path, env)
+
+    config_path = os.path.join(example_path, "build_config")
+    if not os.path.exists(config_path):
+        _pr_error(f"{example_path}/build_config doesn't exist");
+        return
+    
+    _run(c, f"mkdir -p {BUILD_PATH}")        
+    with c.cd(os.path.join(THIRD_PARTY_PATH, "buildroot")):
+      _run(c, f"cp {config_path} .config")
+      _run_make(c, "make")
+      _run(c, f"cp output/images/rootfs.tar {BUILD_PATH}/")      
+
+    _pr_info("Building rootfs completed")
 
 
 @task
@@ -69,14 +99,22 @@ def build_linux(c, example):
     if not os.path.exists(config_path):
         config_path = None
         _pr_warn(f"{example_path}/build_config doesn't exist");
-
+        
+    dts_path = os.path.join(example_path, "dts")
+    if not os.path.exists(dts_path):
+        dts_path = None
+        _pr_warn(f"{example_path}/dts doesn't exist");
+        
     _run(c, f"mkdir -p {BUILD_PATH}")        
     with c.cd(os.path.join(THIRD_PARTY_PATH, "linux")):
       _run_make(c, "make multi_v7_defconfig")
       
       if config_path:
           _run(c, f"scripts/kconfig/merge_config.sh .config {config_path}")
-      
+
+      if dts_path:
+          _run(c, f"cp {dts_path}/* arch/arm/boot/dts/st/")
+          
       _run_make(c, "make -j 8 zImage st/stm32mp135f-dk.dtb")
       _run(c, f"cp arch/arm/boot/zImage {BUILD_PATH}/")
       _run(c, f"cp arch/arm/boot/dts/st/stm32mp135f-dk.dtb {BUILD_PATH}/")
@@ -133,7 +171,7 @@ def build_optee(c, example):
         "CFG_USER_TA_TARGETS": "ta_arm32",
         "CFG_ARM64_core": "n",
         "PLATFORM": "stm32mp1-135F_DK",
-        "CFG_IN_TREE_EARLY_TAS": "trusted_keys/f04a0fe7-1f5d-4b9b-abf7-619b85b4ce8c",        
+        "CFG_IN_TREE_EARLY_TAS": "trusted_keys/f04a0fe7-1f5d-4b9b-abf7-619b85b4ce8c", 
     }
     
     _pr_info("Building optee-os...")
@@ -286,70 +324,40 @@ def deploy_to_sdcard(c, dev="sda"):
     c.run("sudo sync")
 
 @task
-def deploy_to_tftp(c, dev="sda"):
-    tftp_path = os.path.join(ROOT_PATH, "tftp")
-    if not os.path.exists(tftp_path):
-        raise ValueError("No tftp symlink")
+def deploy_to_tftp(c, directory="/srv/tftp"):
+    if not os.path.exists(directory):
+        raise ValueError(f"{directory} does not exists")
 
     with c.cd(BUILD_PATH):
-        c.run( # Copy linux artifacts
-            f"sudo cp zImage stm32mp135f-dk.dtb {tftp_path}"
+        _run(c, # Copy linux artifacts
+            f"sudo cp zImage stm32mp135f-dk.dtb {directory}"
         )
 
+@task
+def deploy_to_nfs(c, directory="/srv/nfs"):
+    if not os.path.exists(directory):
+        raise ValueError(f"{directory} does not exists")
+
+    with c.cd(BUILD_PATH):
+        _run(c, f"sudo tar xvf rootfs.tar -C {directory}")
     
     
 ###############################################
 #                Private API                  #
 ###############################################
 def _pr_info(message: str):
-    """
-    Print an informational message in blue color.
-
-    Args:
-        message (str): The message to print.
-
-    Usage:
-        pr_info("This is an info message.")
-    """
     print(f"\033[94m[INFO] {message}\033[0m")
 
 
 def _pr_warn(message: str):
-    """
-    Print a warning message in yellow color.
-
-    Args:
-        message (str): The message to print.
-
-    Usage:
-        pr_warn("This is a warning message.")
-    """
     print(f"\033[93m[WARN] {message}\033[0m")
 
 
 def _pr_debug(message: str):
-    """
-    Print a debug message in cyan color.
-
-    Args:
-        message (str): The message to print.
-
-    Usage:
-        pr_debug("This is a debug message.")
-    """
     print(f"\033[96m[DEBUG] {message}\033[0m")
 
 
 def _pr_error(message: str):
-    """
-    Print an error message in red color.
-
-    Args:
-        message (str): The message to print.
-
-    Usage:
-        pr_error("This is an error message.")
-    """
     print(f"\033[91m[ERROR] {message}\033[0m")
         
 
