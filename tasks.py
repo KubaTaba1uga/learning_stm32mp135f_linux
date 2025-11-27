@@ -52,6 +52,29 @@ def build(c, example=""):
 
 
 @task
+def build_rootfs(c, example):
+    _pr_info("Building rootfs...")
+    global env    
+    env = {}
+    
+    example_path = os.path.join(EXAMPLES_PATH, example, "linux")
+    if os.path.exists(example_path):
+        _load_env(example_path, env)
+
+    config_path = os.path.join(example_path, "build_config")
+    if not os.path.exists(config_path):
+        _pr_error(f"{example_path}/build_config doesn't exist");
+        return 1
+    _run(c, f"mkdir -p {BUILD_PATH}")        
+    with c.cd(os.path.join(THIRD_PARTY_PATH, "buildroot")):
+
+      _run(c, f"scripts/kconfig/merge_config.sh .config {config_path}")
+        
+      _run_make(c, "make")
+
+      _run(c, f"cp output/images/rootfs.tar {BUILD_PATH}/")      
+    
+@task
 def build_linux(c, example):
     global env    
     env = {
@@ -303,6 +326,13 @@ def deploy_to_tftp(c, directory="/srv/tftp"):
             f"sudo cp zImage stm32mp135f-dk.dtb {directory}"
         )
 
+@task
+def deploy_to_nfs(c, directory="/srv/nfs"):
+    if not os.path.exists(directory):
+        raise ValueError(f"{directory} does not exists")
+
+    with c.cd(BUILD_PATH):
+        _run(c, f"tar xvf rootfs.tar -C {directory}")
     
     
 ###############################################
