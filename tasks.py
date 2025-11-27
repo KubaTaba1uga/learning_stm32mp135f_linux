@@ -57,23 +57,24 @@ def build_rootfs(c, example):
     global env    
     env = {}
     
-    example_path = os.path.join(EXAMPLES_PATH, example, "linux")
+    example_path = os.path.join(EXAMPLES_PATH, example, "buildroot")
     if os.path.exists(example_path):
         _load_env(example_path, env)
 
     config_path = os.path.join(example_path, "build_config")
     if not os.path.exists(config_path):
         _pr_error(f"{example_path}/build_config doesn't exist");
-        return 1
+        return
+    
     _run(c, f"mkdir -p {BUILD_PATH}")        
     with c.cd(os.path.join(THIRD_PARTY_PATH, "buildroot")):
-
-      _run(c, f"scripts/kconfig/merge_config.sh .config {config_path}")
-        
+      _run(c, f"cp {config_path} .config")
       _run_make(c, "make")
-
       _run(c, f"cp output/images/rootfs.tar {BUILD_PATH}/")      
-    
+
+    _pr_info("Building rootfs completed")
+
+
 @task
 def build_linux(c, example):
     global env    
@@ -164,7 +165,7 @@ def build_optee(c, example):
         "CFG_USER_TA_TARGETS": "ta_arm32",
         "CFG_ARM64_core": "n",
         "PLATFORM": "stm32mp1-135F_DK",
-        "CFG_IN_TREE_EARLY_TAS": "trusted_keys/f04a0fe7-1f5d-4b9b-abf7-619b85b4ce8c",        
+        "CFG_IN_TREE_EARLY_TAS": "trusted_keys/f04a0fe7-1f5d-4b9b-abf7-619b85b4ce8c", 
     }
     
     _pr_info("Building optee-os...")
@@ -339,54 +340,18 @@ def deploy_to_nfs(c, directory="/srv/nfs"):
 #                Private API                  #
 ###############################################
 def _pr_info(message: str):
-    """
-    Print an informational message in blue color.
-
-    Args:
-        message (str): The message to print.
-
-    Usage:
-        pr_info("This is an info message.")
-    """
     print(f"\033[94m[INFO] {message}\033[0m")
 
 
 def _pr_warn(message: str):
-    """
-    Print a warning message in yellow color.
-
-    Args:
-        message (str): The message to print.
-
-    Usage:
-        pr_warn("This is a warning message.")
-    """
     print(f"\033[93m[WARN] {message}\033[0m")
 
 
 def _pr_debug(message: str):
-    """
-    Print a debug message in cyan color.
-
-    Args:
-        message (str): The message to print.
-
-    Usage:
-        pr_debug("This is a debug message.")
-    """
     print(f"\033[96m[DEBUG] {message}\033[0m")
 
 
 def _pr_error(message: str):
-    """
-    Print an error message in red color.
-
-    Args:
-        message (str): The message to print.
-
-    Usage:
-        pr_error("This is an error message.")
-    """
     print(f"\033[91m[ERROR] {message}\033[0m")
         
 
