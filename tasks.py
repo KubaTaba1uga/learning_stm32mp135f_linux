@@ -300,7 +300,7 @@ def deploy_to_tftp(c, directory="/srv/tftp"):
 
     with c.cd(BUILD_PATH):
         _run(c, # Copy linux artifacts
-            f"sudo cp zImage stm32mp135f-dk.dtb {tftp_path}"
+            f"sudo cp zImage stm32mp135f-dk.dtb {directory}"
         )
 
     
