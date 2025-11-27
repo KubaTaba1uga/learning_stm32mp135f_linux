@@ -32,17 +32,23 @@ def add_repo(c, name, tag, url):
 
 
 @task
-def build(c, example=""):
+def build(c, example="", rootfs=True, linux=True, uboot=True, optee=True, tfa=True):
     _pr_info(f"Building {example}...")
 
     example_dir = os.path.join(EXAMPLES_PATH, example)
     build_dir = os.path.join(BUILD_PATH, example)
 
     try:
-      build_linux(c, example)
-      build_uboot(c, example)
-      build_optee(c, example)
-      build_tfa(c, example)
+      if rootfs:
+        build_rootfs(c, example)
+      if linux:  
+        build_linux(c, example)
+      if uboot:
+        build_uboot(c, example)
+      if optee:
+        build_optee(c, example)
+      if tfa:
+        build_tfa(c, example)
         
     except Exception:
         _pr_error(f"Building {example} failed")
@@ -333,7 +339,7 @@ def deploy_to_nfs(c, directory="/srv/nfs"):
         raise ValueError(f"{directory} does not exists")
 
     with c.cd(BUILD_PATH):
-        _run(c, f"tar xvf rootfs.tar -C {directory}")
+        _run(c, f"sudo tar xvf rootfs.tar -C {directory}")
     
     
 ###############################################
