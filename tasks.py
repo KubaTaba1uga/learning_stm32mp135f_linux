@@ -18,17 +18,17 @@ env = None
 
 @task
 def add_repo(c, name, tag, url):
-    _run("mkdir -p third_party")
-    _run("git status")
-    _run("git add . || true")
-    _run("git commit -m \"WIP\" || true")
+    _run(c, "mkdir -p third_party")
+    _run(c, "git status")
+    _run(c, "git add . || true")
+    _run(c, "git commit -m \"WIP\" || true")
 
-    if _run(f"git remote get-url \"{name}\"", warn=True, echo=False) == 0:
+    if _run(c, f"git remote get-url \"{name}\"", warn=True, echo=False) == 0:
         _pr_error(f"{name} already exists")
         return 1
 
-    _run(f"git remote add \"{name}\" \"{url}\"")
-    _run(f"git subtree add --prefix=\"third_party/{name}\" \"{name}\" \"{tag}\" --squash")
+    _run(c, f"git remote add \"{name}\" \"{url}\"")
+    _run(c, f"git subtree add --prefix=\"third_party/{name}\" \"{name}\" \"{tag}\" --squash")
 
 
 @task
