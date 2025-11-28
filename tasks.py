@@ -161,9 +161,9 @@ def build_uboot(c, example):
             _run(c, f"cp {env_path} board/st/stm32mp1/uboot.env")
 
         if dts_path:
-          _run(c, f"cp {dts_path}/* dts/upstream/src/arm/st/")
+          _run(c, f"cp {dts_path}/* arch/arm/dts/")
             
-        _run_make(c, "make V=1 -j 4 all")
+        _run_make(c, "make -j 4 all")
         _run(c, f"cp u-boot-nodtb.bin u-boot.dtb {BUILD_PATH}")
 
     _pr_info("Building u-boot completed")
