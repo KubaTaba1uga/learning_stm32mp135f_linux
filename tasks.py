@@ -139,6 +139,11 @@ def build_uboot(c, example):
         config_path = None
         _pr_warn(f"{example_path}/build_config doesn't exist");
 
+    dts_path = os.path.join(example_path, "dts")
+    if not os.path.exists(dts_path):
+        dts_path = None
+        _pr_warn(f"{example_path}/dts doesn't exist");
+        
     env_path = os.path.join(example_path, "uboot.env")
     if not os.path.exists(env_path):
         env_path = None
@@ -154,6 +159,9 @@ def build_uboot(c, example):
 
         if env_path:
             _run(c, f"cp {env_path} board/st/stm32mp1/uboot.env")
+
+        if dts_path:
+          _run(c, f"cp {dts_path}/* arch/arm/dts/")
             
         _run_make(c, "make -j 4 all")
         _run(c, f"cp u-boot-nodtb.bin u-boot.dtb {BUILD_PATH}")
