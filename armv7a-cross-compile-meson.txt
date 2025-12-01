@@ -1,0 +1,18 @@
+[constants]
+tc = '../../../third_party/arm-gnu-toolchain-14.3.rel1-x86_64-arm-none-linux-gnueabihf/bin/arm-none-linux-gnueabihf-'
+
+[binaries]
+c       = tc + 'gcc'
+ar      = tc + 'gcc-ar'
+ld      = tc + 'ld'
+strip   = tc + 'strip'
+objcopy = tc + 'objcopy'
+objdump = tc + 'objdump'
+
+[host_machine]
+system = 'linux'
+kernel = 'linux'
+cpu_family = 'arm'
+cpu = 'armv7hl'
+endian = 'little'
+

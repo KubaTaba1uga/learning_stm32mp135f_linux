@@ -1,4 +1,4 @@
-project('gpio-interrupt', 'c',
+project('btn-interrupt', 'c',
   default_options : [
     'b_pie=false',
     'default_library=static',
@@ -7,7 +7,7 @@ project('gpio-interrupt', 'c',
 
 src = files('main.c')
 
-executable('gpio_interrupt',
+executable('btn_interrupt',
            src,
            install : false,
 )
