@@ -8,4 +8,3 @@ CONFIG_USB_LIBCOMPOSITE=y
 # Sth is wrong with otg dual role so we need to set usb as peripheral manually
 CONFIG_USB_DWC2=y
 CONFIG_USB_DWC2_PERIPHERAL=y
-

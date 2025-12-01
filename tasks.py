@@ -32,13 +32,15 @@ def add_repo(c, name, tag, url):
 
 
 @task
-def build(c, example="", rootfs=True, linux=True, uboot=True, optee=True, tfa=True):
+def build(c, example="", app=True, rootfs=True, linux=True, uboot=True, optee=True, tfa=True):
     _pr_info(f"Building {example}...")
 
     example_dir = os.path.join(EXAMPLES_PATH, example)
     build_dir = os.path.join(BUILD_PATH, example)
 
     try:
+      if app:
+        build_app(c, example)
       if rootfs:
         build_rootfs(c, example)
       if linux:  
@@ -57,6 +59,51 @@ def build(c, example="", rootfs=True, linux=True, uboot=True, optee=True, tfa=Tr
     _pr_info(f"Building {example} completed")
 
 
+
+import os
+import tempfile
+
+@task
+def build_app(c, example):
+    example_path = os.path.join(EXAMPLES_PATH, example, "app")
+    if not os.path.exists(example_path):
+        return
+
+    _pr_info("Building app...")
+
+    cross_tpl_path = os.path.join(ROOT_PATH, "shared/armv7a-cross-compile-meson.txt")
+
+    with c.cd(example_path):
+        build_dir = os.path.join(BUILD_PATH, os.path.basename(example))
+        c.run(f"mkdir -p {build_dir}")
+        app_build_dir = os.path.join(build_dir, "app")
+        c.run(f"mkdir -p {app_build_dir}")
+
+        # --- read + replace PLACEHOLDER ---
+        with open(cross_tpl_path, "r", encoding="utf-8") as f:
+            cross_txt = f.read()
+
+        # normalize ROOT_PATH (avoid trailing slash surprises)
+        root = os.path.abspath(ROOT_PATH)
+        cross_txt = cross_txt.replace("PLACEHOLDER", root)
+
+        # write replaced cross file into build dir
+        cross_out_path = os.path.join(build_dir, "cross-file.txt")
+        with open(cross_out_path, "w", encoding="utf-8") as f:
+            f.write(cross_txt)
+
+        c.run(
+            f"meson setup --wipe --cross-file {cross_out_path} {app_build_dir}"
+        )
+        c.run(
+            f"rm -f compile_commands.json && ln -s {os.path.join(app_build_dir, 'compile_commands.json')} compile_commands.json"
+        )
+
+        c.run(f"meson compile -v -C {app_build_dir}")
+
+    _pr_info("Building app completed")
+
+    
 @task
 def build_rootfs(c, example):
     _pr_info("Building rootfs...")
