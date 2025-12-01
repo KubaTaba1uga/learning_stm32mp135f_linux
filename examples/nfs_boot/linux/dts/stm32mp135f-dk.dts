@@ -75,15 +75,9 @@
 	gpio-keys {
 		compatible = "gpio-keys";
 
-		button-b1-enter {
-			label = "User-PA14";
-			linux,code = <KEY_ENTER>;
-			gpios = <&gpioa 14 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
-		};
-
-		button-b2-escape {
+		button-user {
 			label = "User-PA13";
-			linux,code = <KEY_ESC>;
+			linux,code = <BTN_1>;
 			gpios = <&gpioa 13 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
 		};
 
@@ -91,6 +85,18 @@
 			label = "wake-up";
 			linux,code = <KEY_WAKEUP>;
 			interrupts-extended = <&optee 0>;
+		};
+	};
+
+	leds {
+		compatible = "gpio-leds";
+
+		led-blue {
+			function = LED_FUNCTION_HEARTBEAT;
+			color = <LED_COLOR_ID_BLUE>;
+			gpios = <&gpioa 14 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "heartbeat";
+			default-state = "off";
 		};
 	};
 
