@@ -82,7 +82,7 @@ def build_rootfs(c, example):
 
 
 @task
-def build_linux(c, example):
+def build_linux(c, example=""):
     global env    
     env = {
         "CROSS_COMPILE": TOOLCHAIN_PATH,
@@ -107,17 +107,18 @@ def build_linux(c, example):
         
     _run(c, f"mkdir -p {BUILD_PATH}")        
     with c.cd(os.path.join(THIRD_PARTY_PATH, "linux")):
-      _run_make(c, "make multi_v7_defconfig")
+        if example:
+            _run_make(c, "make multi_v7_defconfig")
       
-      if config_path:
-          _run(c, f"scripts/kconfig/merge_config.sh .config {config_path}")
+            if config_path:
+                _run(c, f"scripts/kconfig/merge_config.sh .config {config_path}")
 
-      if dts_path:
-          _run(c, f"cp {dts_path}/* arch/arm/boot/dts/st/")
+            if dts_path:
+                _run(c, f"cp {dts_path}/* arch/arm/boot/dts/st/")
           
-      _run_make(c, "make -j 8 zImage st/stm32mp135f-dk.dtb")
-      _run(c, f"cp arch/arm/boot/zImage {BUILD_PATH}/")
-      _run(c, f"cp arch/arm/boot/dts/st/stm32mp135f-dk.dtb {BUILD_PATH}/")
+        _run_make(c, "make -j 8 zImage st/stm32mp135f-dk.dtb")
+        _run(c, f"cp arch/arm/boot/zImage {BUILD_PATH}/")
+        _run(c, f"cp arch/arm/boot/dts/st/stm32mp135f-dk.dtb {BUILD_PATH}/")
 
     _pr_info("Building linux completed")
       
