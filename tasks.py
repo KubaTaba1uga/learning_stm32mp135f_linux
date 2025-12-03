@@ -59,10 +59,26 @@ def build(c, example="", app=True, rootfs=True, linux=True, uboot=True, optee=Tr
     _pr_info(f"Building {example} completed")
 
 
+@task
+def build_lkm(c, example):
+    global env    
+    env = {
+        "CROSS_COMPILE": TOOLCHAIN_PATH,
+        "ARCH":"arm",
+    }
 
-import os
-import tempfile
+    example_path = os.path.join(EXAMPLES_PATH, example, "lkm")
+    if not os.path.exists(example_path):
+        print("HIT")
+        return
+    
+    _pr_info("Building lkm...")
+    
+    with c.cd(example_path):
+      _run_make(c, "make")
 
+    _pr_info("Building lkm completed")      
+      
 @task
 def build_app(c, example):
     example_path = os.path.join(EXAMPLES_PATH, example, "app")
