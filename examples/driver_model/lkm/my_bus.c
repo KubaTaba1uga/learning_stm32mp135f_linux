@@ -12,7 +12,7 @@
 #include <linux/of.h>
 
 MODULE_AUTHOR("Jakub Buczynski");
-MODULE_DESCRIPTION("Button driver exposing press on button");
+MODULE_DESCRIPTION("");
 MODULE_LICENSE("Dual MIT/GPL");
 
 /*

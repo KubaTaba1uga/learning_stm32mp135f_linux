@@ -16,12 +16,14 @@ MODULE_LICENSE("Dual MIT/GPL");
 extern struct bus_type my_bus;
 
 static void my_device_release(struct device *dev) {
-  pr_info("%s\n", __func__);  
+  pr_info("%s\n", __func__);
+
 }
 
 struct device my_device = {
     .init_name = "my_device",
-    .release = my_device_release,    
+    .release = my_device_release,
+    .bus = &my_bus,
 };
 
 static int __init my_device_module_init(void) {
@@ -30,7 +32,6 @@ static int __init my_device_module_init(void) {
   /* Registering a device means it appear in:
       /sys/devices
    */
-  my_device.bus = &my_bus;  
   int ret = device_register(&my_device);
   if (ret < 0) {
     pr_err("my_device: could not register my_device\n");
