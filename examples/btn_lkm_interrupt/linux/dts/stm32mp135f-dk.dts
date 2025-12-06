@@ -88,16 +88,10 @@
 		};
 	};
 
-        gpio-mylkm {
-		compatible = "btn_lkm_irq_device_driver";
-
-		button-b1-enter {
-			label = "User-PA14";
-			linux,code = <KEY_ENTER>;
-			gpios = <&gpioa 14 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
-		};
-	
-        }
+        button-b1-enter {
+		compatible = "btn_lkm_irq";
+		abc-gpios = <&gpioa 14 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+        };
 
 	panel_backlight: panel-backlight {
 		compatible = "pwm-backlight";

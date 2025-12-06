@@ -75,9 +75,9 @@
 	gpio-keys {
 		compatible = "gpio-keys";
 
-		button-user {
+		button-b2-escape {
 			label = "User-PA13";
-			linux,code = <BTN_1>;
+			linux,code = <KEY_ESC>;
 			gpios = <&gpioa 13 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
 		};
 
@@ -88,17 +88,10 @@
 		};
 	};
 
-	leds {
-		compatible = "gpio-leds";
-
-		led-blue {
-			function = LED_FUNCTION_HEARTBEAT;
-			color = <LED_COLOR_ID_BLUE>;
-			gpios = <&gpioa 14 GPIO_ACTIVE_LOW>;
-			linux,default-trigger = "heartbeat";
-			default-state = "off";
-		};
-	};
+        button-b1-enter {
+		compatible = "btn_lkm_irq";
+		gpios = <&gpioa 14 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+        };
 
 	panel_backlight: panel-backlight {
 		compatible = "pwm-backlight";
@@ -672,7 +665,6 @@
 &usbotg_hs {
 	phys = <&usbphyc_port1 0>;
 	phy-names = "usb2-phy";
-	usb-role-switch;
 	status = "okay";
 	port {
 		usbotg_hs_ep: endpoint {

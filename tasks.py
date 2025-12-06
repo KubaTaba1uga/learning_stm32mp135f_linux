@@ -64,19 +64,24 @@ def build_lkm(c, example):
     global env    
     env = {
         "CROSS_COMPILE": TOOLCHAIN_PATH,
+        "KDIR": os.path.join(THIRD_PARTY_PATH, "linux"),
         "ARCH":"arm",
     }
 
     example_path = os.path.join(EXAMPLES_PATH, example, "lkm")
     if not os.path.exists(example_path):
-        print("HIT")
         return
     
     _pr_info("Building lkm...")
     
     with c.cd(example_path):
       _run_make(c, "make")
+      _run(c, f"cp *.ko {BUILD_PATH}")
+      _run(c,
+            f"rm -f compile_commands.json && ln -s {os.path.join(THIRD_PARTY_PATH, 'linux', 'compile_commands.json')} compile_commands.json"
+        )
 
+      
     _pr_info("Building lkm completed")      
       
 @task
@@ -95,15 +100,11 @@ def build_app(c, example):
         app_build_dir = os.path.join(build_dir, "app")
         c.run(f"mkdir -p {app_build_dir}")
 
-        # --- read + replace PLACEHOLDER ---
         with open(cross_tpl_path, "r", encoding="utf-8") as f:
             cross_txt = f.read()
-
-        # normalize ROOT_PATH (avoid trailing slash surprises)
+            cross_txt = cross_txt.replace("PLACEHOLDER", root)
+            
         root = os.path.abspath(ROOT_PATH)
-        cross_txt = cross_txt.replace("PLACEHOLDER", root)
-
-        # write replaced cross file into build dir
         cross_out_path = os.path.join(build_dir, "cross-file.txt")
         with open(cross_out_path, "w", encoding="utf-8") as f:
             f.write(cross_txt)
@@ -180,6 +181,7 @@ def build_linux(c, example=""):
                 _run(c, f"cp {dts_path}/* arch/arm/boot/dts/st/")
           
         _run_make(c, "make -j 8 zImage st/stm32mp135f-dk.dtb")
+        _run(c, "python scripts/clang-tools/gen_compile_commands.py")        
         _run(c, f"cp arch/arm/boot/zImage {BUILD_PATH}/")
         _run(c, f"cp arch/arm/boot/dts/st/stm32mp135f-dk.dtb {BUILD_PATH}/")
 
@@ -369,6 +371,8 @@ def clean_uboot(c):
     
 @task
 def deploy_to_sdcard(c, dev="sda"):
+    _pr_info(f"Deploying to sdcard...")
+    
     if not os.path.exists("/dev/disk/by-partlabel/fsbl1"):
         raise ValueError("No /dev/disk/by-partlabel/fsbl1")
     if not os.path.exists("/dev/disk/by-partlabel/fsbl2"):
@@ -387,8 +391,12 @@ def deploy_to_sdcard(c, dev="sda"):
         
     c.run("sudo sync")
 
+    _pr_info(f"Deploy to sdcard completed")    
+
 @task
 def deploy_to_tftp(c, directory="/srv/tftp"):
+    _pr_info(f"Deploying to tftp...")
+    
     if not os.path.exists(directory):
         raise ValueError(f"{directory} does not exists")
 
@@ -396,15 +404,23 @@ def deploy_to_tftp(c, directory="/srv/tftp"):
         _run(c, # Copy linux artifacts
             f"sudo cp zImage stm32mp135f-dk.dtb {directory}"
         )
-
+        
+    _pr_info(f"Deploy to tftp completed")
+    
 @task
-def deploy_to_nfs(c, directory="/srv/nfs"):
+def deploy_to_nfs(c, directory="/srv/nfs", rootfs=True):
+    _pr_info(f"Deploying to NFS...")
+
     if not os.path.exists(directory):
         raise ValueError(f"{directory} does not exists")
 
     with c.cd(BUILD_PATH):
-        _run(c, f"sudo tar xvf rootfs.tar -C {directory}")
+        if rootfs:
+            _run(c, f"sudo tar xvf rootfs.tar -C {directory}")
+        _run(c, f"sudo cp *.ko {os.path.join(directory, 'root')}")
     
+    _pr_info(f"Deploy to NFS completed")
+
     
 ###############################################
 #                Private API                  #
