@@ -100,11 +100,11 @@ def build_app(c, example):
         app_build_dir = os.path.join(build_dir, "app")
         c.run(f"mkdir -p {app_build_dir}")
 
+        root = os.path.abspath(ROOT_PATH)        
         with open(cross_tpl_path, "r", encoding="utf-8") as f:
             cross_txt = f.read()
             cross_txt = cross_txt.replace("PLACEHOLDER", root)
             
-        root = os.path.abspath(ROOT_PATH)
         cross_out_path = os.path.join(build_dir, "cross-file.txt")
         with open(cross_out_path, "w", encoding="utf-8") as f:
             f.write(cross_txt)
