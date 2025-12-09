@@ -1,6 +1,9 @@
 ifneq ($(KERNELRELEASE),)
   # kbuild part of makefile
   obj-m := my_bus.o
+  obj-m += my_device.o
+  obj-m += my_driver.o
+
 else
   # normal makefile
   KDIR ?= /lib/modules/`uname -r`/build
