@@ -90,7 +90,8 @@
 
         button-b1-enter {
 		compatible = "btn_lkm_irq";
-		abc-gpios = <&gpioa 14 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+		irq-gpios = <&gpioa 14 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+		code = <KEY_ENTER>;
         };
 
 	panel_backlight: panel-backlight {

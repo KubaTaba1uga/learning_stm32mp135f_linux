@@ -1,14 +1,17 @@
 /*
  * btn_lkm_irq
  ****************************************************************
- * Brief Description:
- * LKM intercept GPIO button press and expose it via input subsystem.
-
- TO-DO: allow setting keycode via an attribute
-
+ * Platform LKM that binds to a DT node, requests an IRQ from a GPIO
+ * line, and reports button state changes through the Linux input
+ * subsystem as EV_KEY events.
+ *
+ * Device Tree:
+ * compatible = "btn_lkm_irq";
+ * irq-gpios  = <&gpioX N FLAGS>;
+ * code       = <KEY_* or BTN_*>;
+ *
  */
 
-#include "linux/container_of.h"
 #include "linux/device.h"
 #include "linux/device/driver.h"
 #include "linux/gfp_types.h"
@@ -18,6 +21,7 @@
 #include "linux/interrupt.h"
 #include "linux/irqreturn.h"
 #include "linux/printk.h"
+#include "linux/property.h"
 #include "linux/spinlock.h"
 #include <linux/init.h>
 #include <linux/module.h>
@@ -26,87 +30,45 @@
 #include <linux/platform_device.h>
 #include <linux/sprintf.h>
 
-/*
- |===============================================================|
- |                                                               |
- |                         Attributes                            |
- |                                                               |
- |===============================================================|
- */
-static int btn_lkm_irq_debug = 1;
-
-static ssize_t btn_lkm_irq_debug_show(struct device_driver *dev, char *buf) {
-  (void)btn_lkm_irq_debug_show;
-  return sprintf(buf, "%d", btn_lkm_irq_debug);
-};
-
-static ssize_t btn_lkm_irq_debug_store(struct device_driver *dev,
-                                       const char *buf, size_t count) {
-  (void)btn_lkm_irq_debug_store;
-  if (strncmp("0", buf, count) == 0 || strncmp("0\n", buf, count) == 0) {
-    btn_lkm_irq_debug = 0;
-  } else {
-    btn_lkm_irq_debug = 1;
-  };
-  return 1;
-}
-
-static DRIVER_ATTR_RW(btn_lkm_irq_debug);
-
-/*
- |===============================================================|
- |                                                               |
- |                           Macros                              |
- |                                                               |
- |===============================================================|
- */
-#define PR_ERR(...) pr_err("btn_lkm_irq: " __VA_ARGS__)
-#define PR_INFO(...)                                                           \
-  if (btn_lkm_irq_debug == 1) {                                                \
-    pr_info("btn_lkm_irq: " __VA_ARGS__);                                      \
-  }
-
-/*
- |===============================================================|
- |                                                               |
- |                             API                               |
- |                                                               |
- |===============================================================|
- */
 struct btn_lkm_irq_drvdata {
   spinlock_t lock;
   int irq;
   struct gpio_desc *gpiod;     // GPIO descriptor.
                                // We need it to interact with gpiolib.c.
   struct input_dev *input_dev; // Input device.
-                               // We need it to inetract with input.c.
+                               // We need it to interact with input.c.
   bool btn_is_pressed;
+  uint32_t btn_value;
 };
 
 static irqreturn_t btn_lkm_irq_irs(int irq, void *data) {
-  PR_INFO("%s\n", __func__);
-
-  struct btn_lkm_irq_drvdata *drvdata = data;
+  struct platform_device *device = data;
+  struct btn_lkm_irq_drvdata *drvdata = platform_get_drvdata(data);
+  spin_lock(&drvdata->lock);
 
   int pin_value = gpiod_get_value(drvdata->gpiod);
   if (pin_value == drvdata->btn_is_pressed) {
-    return IRQ_HANDLED;
+    goto out;
   }
 
   drvdata->btn_is_pressed = pin_value;
-  input_report_key(drvdata->input_dev, KEY_A, drvdata->btn_is_pressed);
+
+  input_report_key(drvdata->input_dev, drvdata->btn_value,
+                   drvdata->btn_is_pressed);
   input_sync(drvdata->input_dev);
 
-  PR_INFO("%s: %s\n", __func__,
-          pin_value ? "Button pressed" : "Button realesed");
+  dev_dbg(&device->dev, "%s\n",
+          drvdata->btn_is_pressed ? "Button pressed" : "Button realesed");
+
+out:
+  spin_unlock(&drvdata->lock);
 
   return IRQ_HANDLED;
 };
 
 static int btn_lkm_irq_probe(struct platform_device *device) {
-  PR_INFO("%s\n", __func__);
   int err;
-  
+
   // According devres.rst:
   //   `all devres entries are released on driver detach`
   // So we do not need to free drvdata manually in remove nor in probe
@@ -114,7 +76,7 @@ static int btn_lkm_irq_probe(struct platform_device *device) {
   struct btn_lkm_irq_drvdata *drvdata = devm_kzalloc(
       &device->dev, sizeof(struct btn_lkm_irq_drvdata), GFP_KERNEL);
   if (!drvdata) {
-    PR_ERR("Cannot allocate memory for driver instance\n");
+    dev_err(&device->dev, "Cannot allocate memory for driver instance\n");
     return -ENOMEM;
   }
   spin_lock_init(&drvdata->lock);
@@ -125,14 +87,15 @@ static int btn_lkm_irq_probe(struct platform_device *device) {
   // driver-api/gpio/consumer. DT example:
   //         button-b1-enter {
   //		compatible = "btn_lkm_irq";
-  //		abc-gpios = <&gpioa 14 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+  //		irq-gpios = <&gpioa 14 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+  // 		code = <KEY_ENTER>;
   //      };
   //
   // This gpio descriptor is assigned to the device so we do not
   // need to free it manually.
-  struct gpio_desc *gpio = devm_gpiod_get(&device->dev, "abc", GPIOD_IN);
+  struct gpio_desc *gpio = devm_gpiod_get(&device->dev, "irq", GPIOD_IN);
   if (IS_ERR(gpio)) {
-    PR_ERR("Cannot get GPIO descriptor\n");
+    dev_err(&device->dev, "Cannot get `irq-gpios` GPIO descriptor\n");
     err = PTR_ERR(gpio);
     goto err_lock_cleanup;
   }
@@ -140,23 +103,30 @@ static int btn_lkm_irq_probe(struct platform_device *device) {
   // If IRQ is properly configured for the GPIOD we can obtain IRQ number.
   int irq = err = gpiod_to_irq(gpio);
   if (err < 0) {
-    PR_ERR("Cannot obtain IRQ number from GPIO descriptor\n");
+    dev_err(&device->dev, "Cannot obtain IRQ number from GPIO descriptor\n");
     goto err_lock_cleanup;
   }
 
   // Register into input subsystem.
   struct input_dev *input_dev = devm_input_allocate_device(&device->dev);
   if (!input_dev) {
-    PR_ERR("Cannot allocate memory for input_dev in driver instance\n");
+    dev_err(&device->dev,
+            "Cannot allocate memory for input_dev in driver instance\n");
     err = -ENOMEM;
     goto err_lock_cleanup;
   }
 
-  input_set_capability(input_dev, EV_KEY, KEY_A);
+  err = device_property_read_u32(&device->dev, "code", &drvdata->btn_value);
+  if (err) {
+    dev_err(&device->dev, "Cannot find `code` property in DT\n");
+    drvdata->btn_value = BTN_0;
+  };
+
+  input_set_capability(input_dev, EV_KEY, drvdata->btn_value);
 
   err = input_register_device(input_dev);
   if (err) {
-    PR_ERR("Cannot register input_dev in input subsystem\n");
+    dev_err(&device->dev, "Cannot register input_dev in input subsystem\n");
     goto err_lock_cleanup;
   };
 
@@ -169,9 +139,9 @@ static int btn_lkm_irq_probe(struct platform_device *device) {
   // observe in /proc/irq/ how new entity appears during probe.
   int irqflags = IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING;
   err = devm_request_irq(&device->dev, irq, btn_lkm_irq_irs, irqflags,
-                         "btn_lkm_irq", drvdata);
+                         "btn_lkm_irq", device);
   if (err < 0) {
-    PR_ERR("Cannot request IRQ\n");
+    dev_err(&device->dev, "Cannot request IRQ\n");
     goto err_input_cleanup;
   }
 
@@ -187,8 +157,6 @@ err_lock_cleanup:
 };
 
 static int btn_lkm_irq_remove(struct platform_device *device) {
-  PR_INFO("%s\n", __func__);
-
   struct btn_lkm_irq_drvdata *drvdata = dev_get_drvdata(&device->dev);
   input_unregister_device(drvdata->input_dev);
 
@@ -213,17 +181,9 @@ static struct platform_driver btn_lkm_irq = {
 };
 
 static int __init btn_lkm_irq_init(void) {
-  pr_info("Inserted: %s\n", __func__);
-
   int err = platform_driver_register(&btn_lkm_irq);
   if (err) {
-    PR_ERR("Cannot register platform driver\n");
-    return err;
-  }
-
-  err = driver_create_file(&btn_lkm_irq.driver, &driver_attr_btn_lkm_irq_debug);
-  if (err) {
-    PR_ERR("Cannot create btn_lkm_irq_debug attribute\n");
+    pr_err("btn_lkm_irq: Cannot register platform driver\n");
     return err;
   }
 
