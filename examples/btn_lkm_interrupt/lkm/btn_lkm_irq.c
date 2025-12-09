@@ -198,5 +198,5 @@ module_init(btn_lkm_irq_init);
 module_exit(btn_lkm_irq_exit);
 
 MODULE_AUTHOR("Jakub Buczynski");
-MODULE_DESCRIPTION("GPIO button driver, exposing press via input subsystem");
+MODULE_DESCRIPTION("DT-bound GPIO button IRQ driver reporting EV_KEY via input subsystem");
 MODULE_LICENSE("Dual MIT/GPL");
