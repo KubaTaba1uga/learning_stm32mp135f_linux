@@ -402,13 +402,13 @@ def deploy_to_tftp(c, directory="/srv/tftp"):
 
     with c.cd(BUILD_PATH):
         _run(c, # Copy linux artifacts
-            f"sudo cp zImage stm32mp135f-dk.dtb {directory}"
+            f"chmod 777 zImage stm32mp135f-dk.dtb && sudo cp zImage stm32mp135f-dk.dtb {directory}"
         )
         
     _pr_info(f"Deploy to tftp completed")
     
 @task
-def deploy_to_nfs(c, directory="/srv/nfs", rootfs=True):
+def deploy_to_nfs(c, directory="/srv/nfs", rootfs=True, example=""):
     _pr_info(f"Deploying to NFS...")
 
     if not os.path.exists(directory):
@@ -417,6 +417,8 @@ def deploy_to_nfs(c, directory="/srv/nfs", rootfs=True):
     with c.cd(BUILD_PATH):
         if rootfs:
             _run(c, f"sudo tar xvf rootfs.tar -C {directory}")
+        if example:
+            _run(c, f"sudo cp {example}/app/{example} {os.path.join(directory, 'root')}")
         _run(c, f"sudo cp *.ko {os.path.join(directory, 'root')}")
     
     _pr_info(f"Deploy to NFS completed")
